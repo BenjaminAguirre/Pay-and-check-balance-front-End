@@ -1,8 +1,7 @@
-import CryptoPayment from '../components/CryptoPayment';
-
+import LoginAndPayment from '../components/logIn&Payment';
 export default function Home() {
   return (
-    <CryptoPayment />
+    <LoginAndPayment />
   );
 }
 
