@@ -79,20 +79,84 @@ export default function Login({ onSuccessfulLogin }: LoginProps) {
   }
 
   const handleZelcoreRequest = async () => {
+    if (!message) {
+      setError("No message available")
+      return
+    }
+
+    setIsLoading(true)
     try {
+
+      const socketURL = `wss://api.runonflux.io/ws/id/${message}`;
+
+      console.log("Connecting to WebSocket:", socketURL);
       const url = `zel:?action=sign&message=${message}&icon=https%3A%2F%2Fraw.githubusercontent.com%2Frunonflux%2Fflux%2Fmaster%2FzelID.svg&callback=https://api.runonflux.io/id/verifylogin`
       const open = window.open(url, "_blank")
       if (!open) {
         throw new Error("Unable to open Zel wallet. Please ensure it's installed or try copying this link: " + url)
       }
-      console.log(url)
+
+      const zelcoreWebSocket = new WebSocket(socketURL);
+
+      zelcoreWebSocket.onopen = (event) => {
+        console.log(event);
+      };
+
+      if (zelcoreWebSocket) {
+        zelcoreWebSocket.onmessage = async (event) => {
+          console.log(event.data);
+          // Convertir el mensaje en un objeto de parámetros
+          const params = new URLSearchParams(event.data);
+          console.log(params);
+          
+
+          // Obtener el status
+          const status = params.get("status") ?? ""; // Manejar `null`
+          console.log("Status:", status);
+
+          // Definir data con un tipo adecuado
+          const data: Record<string, string> = {};
+
+          // Extraer los datos anidados
+          for (const [key, value] of params.entries()) {
+            if (key.startsWith("data[")) {
+              const cleanKey = key.replace(/^data\[(.*?)\]$/, "$1");
+              data[cleanKey] = decodeURIComponent(value);
+            }
+          }
+
+          console.log("Parsed Data:", data);
+
+          // Verificar si el status es "success" y si hay datos
+          if (status === "success" && Object.keys(data).length > 0) {
+            const extractedData = {
+              zelid: data.zelid ?? "",   // Manejar `undefined`
+              signature: data.signature ?? "",
+              loginPhrase: data.loginPhrase ?? ""
+            };
+            localStorage.setItem("zelid", JSON.stringify(extractedData))
+            console.log("Extracted Data:", extractedData);
+            const verifyResponse = await axios.post("http://localhost:8000/api/verifyLogin", extractedData, {
+              withCredentials: true,
+            })
+            
+            if (verifyResponse.status === 200) {
+              onSuccessfulLogin()
+            }
+          }
+        };
+      } else {
+        console.error("Error: `zelcoreWebSocket` es null o undefined.");
+      }
+      zelcoreWebSocket.onerror = (error) => console.error("WebSocket Error:", error);
+      zelcoreWebSocket.onclose = () => console.log("WebSocket connection closed.");
+
     } catch (err) {
-      console.error("Error:", err)
-      setError("An unknown error occurred")
-    } finally {
+      console.error("Error:", err);
+    }finally {
       setIsLoading(false)
     }
-  }
+  };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50/50 p-4">

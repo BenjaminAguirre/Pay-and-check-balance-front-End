@@ -13,7 +13,7 @@ export default function LoginAndPayment() {
   const [isLoading, setIsLoading] = useState(true)
   const [userId, setUserId] = useState("")
 
-  const checkLoginStatus = async () => {
+  const checkLoginStatus = async () => { 
     const storedZelid = localStorage.getItem("zelid")
 
     if (storedZelid) {
