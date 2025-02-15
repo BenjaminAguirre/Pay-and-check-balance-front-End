@@ -1,114 +1,140 @@
-import Image from "next/image";
-import { Geist, Geist_Mono } from "next/font/google";
+"use client"
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
+import type React from "react"
+import { useState, useEffect } from "react"
+import { ethers } from "ethers"
+import axios from "axios"
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
+const MetaMaskConnect: React.FC = () => {
+  const [isMetaMaskInstalled, setIsMetaMaskInstalled] = useState<boolean>(false)
+  const [message, setMessage] = useState("")
+  const [userId, setUserId] = useState<string | null>(null)
+  const [isConnecting, setIsConnecting] = useState<boolean>(false)
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-export default function Home() {
+  useEffect(() => {
+    if (typeof window.ethereum !== "undefined") {
+      setIsMetaMaskInstalled(true)
+      fetchMessage()
+    }
+  }, [])
+
+  const fetchMessage = async () => {
+    setIsLoading(true)
+    setError("")
+    try {
+      const result = await axios.get("https://api.runonflux.io/id/loginphrase")
+      setMessage(result.data.data)
+      console.log(result.data.data)
+    } catch (err) {
+      console.error("Error fetching message:", err)
+      setError("Failed to fetch message")
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+
+
+  const connectMetaMaskCosmos = async () => {
+    if (!window.ethereum) {
+      setError("MetaMask no está instalado.")
+      return
+    }
+    setIsConnecting(true)
+    setError(null)
+    try {
+      console.log("Iniciando conexión con MetaMask Cosmos...")
+
+      const snaps = await window.ethereum.request({ method: "wallet_getSnaps" })
+      console.log("Snaps instalados:", snaps)
+
+      const cosmosSnapId = "npm:@cosmsnap/snap"
+      const isInstalled = Object.keys(snaps).includes(cosmosSnapId)
+      console.log("¿Cosmos Snap está instalado?", isInstalled)
+
+      if (!isInstalled) {
+        console.log("Instalando Cosmos Snap...")
+        const installResult = await window.ethereum.request({
+          method: "wallet_requestSnaps",
+          params: {
+            [cosmosSnapId]: { version: "^0.1.0" },
+          },
+        })
+        console.log("Resultado de la instalación:", installResult)
+      }
+
+      console.log("Inicializando Cosmos Snap...")
+      const initialized = await window.ethereum.request({
+        method: "wallet_invokeSnap",
+        params: {
+          snapId: cosmosSnapId,
+          request: { method: "initialized" },
+        },
+      })
+      console.log("¿Cosmos Snap inicializado?", initialized)
+      if(!initialized){
+        await new Promise((resolve) => setTimeout(resolve, 10000))
+      }
+      if (initialized) {
+        console.log("Obteniendo dirección de Akash...")
+        const response = await window.ethereum.request({
+          method: "wallet_invokeSnap",
+          params: {
+            snapId: cosmosSnapId,
+            request: {
+              method: "getChainAddress",
+              params: { chain_id: "akashnet-2" },
+            },
+          },
+        })
+        console.log("Respuesta de getChainAddress:", response)
+
+        if (response) {
+          setUserId(response.data.address.address)
+          console.log("User ID establecido:", response.data.address)
+        } 
+      } else {
+        throw new Error("No se pudo inicializar Cosmos Snap")
+      }
+    } catch (error) {
+      console.error("Error detallado al conectar MetaMask Cosmos:", error)
+      setError(`Error al conectar con MetaMask Cosmos: ${error}`)
+    } finally {
+      setIsConnecting(false)
+    }
+  }
+
   return (
-    <div
-      className={`${geistSans.variable} ${geistMono.variable} grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]`}
-    >
-      <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-semibold">
-              pages/index.tsx
-            </code>
-            .
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
-
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=default-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:min-w-44"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=default-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
-        </div>
-      </main>
-      <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=default-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=default-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=default-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+    <div className="p-4 max-w-md mx-auto bg-white rounded-xl shadow-md">
+      <h1 className="text-2xl font-bold mb-4">Conexión MetaMask</h1>
+      {!isMetaMaskInstalled ? (
+        <p className="text-red-500">MetaMask no está instalado. Por favor, instálalo para continuar.</p>
+      ) : (
+        <>
+          {!userId ? (
+            <>
+              <button
+                onClick={connectMetaMaskCosmos}
+                disabled={isConnecting}
+                className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
+              >
+                {isConnecting ? "Conectando..." : "Conectar MetaMask Akash"}
+              </button>
+            </>
+          ) : (
+            <div>
+              <p className="text-green-500 mb-2">Conectado con éxito!</p>
+              <p className="break-all">User ID: {userId}</p>
+            </div>
+          )}
+          {error && <p className="text-red-500 mt-2">{error}</p>}
+        </>
+      )}
     </div>
-  );
+  )
 }
+
+export default MetaMaskConnect
+
